@@ -1,0 +1,145 @@
+--Masuram: 
+	V+=4V =Ain2
+	VRef=1.23V =Ain1
+	VSenzor =Ain3
+	
+Formula: T=(((5*VSenzor)/V+)-1.375)/0.0225
+
+NAin1=1.2V/5*2^10
+NAin1`=1.2v/RefArduino
+
+K=NAin1/NAin1` //factor de corectie
+
+
+const int Ain1 = A1;  // Referinta stabila 1.2V (LTC1541)
+const int Ain2 = A2;  // Tensiunea de alimentare care intra in senzor
+const int Ain3 = A3;  // Iesirea de semnal a senzorului AD22100
+const int Ain4 = A4;
+
+const int Putere = 1024;    // 2^10
+
+long readVcc() {
+  // Selectează referința internă de 1.1V
+  ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+  delay(2); // timp de stabilizare
+
+  ADCSRA |= _BV(ADSC); // pornește conversia
+  while (bit_is_set(ADCSRA, ADSC));
+
+  uint16_t result = ADC;
+
+  // 1.1V * 1023 * 1000 (pentru mV)
+  long vcc = 1125300L / result;
+  return vcc; // în milivolți
+}
+
+void setup() {
+  Serial.begin(9600);
+}
+
+void loop() {
+  // Variabile pentru acumularea citirilor brute
+  float rawAIN1 = 0;
+  float rawAIN2 = 0;
+  float rawAIN3 = 0;
+  float rawAIN4 = 0;
+
+  // 1. Citire valori brute cu mediere (10 eșantioane)
+  for(int i=0; i<10; i++) {
+    rawAIN1 += analogRead(Ain1);
+    rawAIN2 += analogRead(Ain2);
+    rawAIN3 += analogRead(Ain3);
+    rawAIN4 += analogRead(Ain4);
+    delay(10);
+  }
+
+  // Calculare medie
+  float avgAIN1 = rawAIN1 / 10.0;
+  float avgAIN2 = rawAIN2 / 10.0;
+  float avgAIN3 = rawAIN3 / 10.0;
+  float avgAIN4 = rawAIN4 / 10.0;
+
+  // 2. Conversie în Volți (bazat pe referința standard de 5V a ADC-ului)
+  float Ref = avgAIN1 * (5.0 / 1023.0);
+  float Vcc = avgAIN2 * (5.0 / 1023.0);
+  float VSenz = avgAIN3 * (5.0 / 1023.0);
+  float VAr = avgAIN4 * (5.0 / 1023.0);
+  
+  // 3. Aplicare factor de corecție K bazat pe referința externă de 1.2V
+  float NAin1_ideal = 1.2 / 5.0 * 1023.0; 
+  float K = NAin1_ideal / avgAIN1; 
+  
+  Vcc = Vcc * K;
+  VSenz = VSenz * K;
+  Ref=Ref*K;
+
+  float x= readVcc();
+  // 4. Calcul temperatură AD22100
+  // Formula: T = (((Vout * 5 / Vcc) - 1.375) / 0.0225)
+  float T = (((readVcc()/1000 * VSenz) / Vcc) - 1.375) / 0.0225;
+
+  // Afișare date
+  Serial.print("K (Factor Corectie): ");
+  Serial.println(K, 4);
+  
+  Serial.print("1.2V Ref Masurat: ");
+  Serial.println(Ref, 3);
+  
+  Serial.print("Vcc (Corectat): ");
+  Serial.println(Vcc, 3);
+  
+  Serial.print("VSenz (Corectat): ");
+  Serial.println(VSenz, 3);
+
+  Serial.print("Temperatura: ");
+  Serial.print(T, 2);
+  Serial.println(" C");
+
+  Serial.print("Vcc (Intern/SecretVoltmeter): ");
+  Serial.print(readVcc());
+  Serial.println(" mV");
+  
+  Serial.println("-----------------------");
+
+  delay(1000);
+}
+
+
+
+
+const int Ain1 = A1;  // Referinta stabila 1.2V (LTC1541)
+const int Ain2 = A2;  // Tensiunea de alimentare care intra in senzor
+const int Ain3 = A3;  // Iesirea de semnal a senzorului AD22100
+const int Ain4 = A4;
+
+void setup() {
+  Serial.begin(9600);
+  analogReference(EXTERNAL);
+}
+
+
+
+void loop() {
+ 
+
+  int AIN1 = analogRead(Ain1);   // Referinta 1.2V
+  int AIN2 = analogRead(Ain2); // Tensiunea reala de alimentare (nominal 4V)
+  int AIN3 = analogRead(Ain3); // Valoarea de temperatura
+  int AIN4 = analogRead(Ain4); 
+
+ 
+  
+  float x=(1024.0/AIN1)*1.2;
+  float y=1024.0*1.2/AIN1;
+  float VSenz=(AIN3/1024)*y;
+  float Vcc=AIN2*y/1024;
+  float T=(((5*VSenz)/Vcc)-1.375)/0.0225;
+
+  Serial.println(Vcc);
+  Serial.println(VSenz);
+   Serial.println(x);
+   Serial.println(T);
+  Serial.println();
+  delay(1000);
+}
+
